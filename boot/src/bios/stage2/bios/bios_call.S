@@ -81,7 +81,7 @@ bios_call:
     ljmp    $0x0000, $2f
 2:
     SET_SEGMENT $0x00
-    movw    $0x7C00, %sp
+    movl    $0x7C00, %esp
     sti
 
     //  Load input registers from bounce buffer (DS=0 here)
