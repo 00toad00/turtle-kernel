@@ -34,7 +34,7 @@ void *find_rsdp(void) {
     uintptr_t ebda = (uintptr_t)(*(volatile uint16_t *)0x40E) << 4;
     void *r = NULL;
 
-    if (ebda >= 0x80000 && ebda < 0xA0000)        // sanity check
+    if (ebda >= 0x80000 && ebda < 0xA0000)        
         r = scan(ebda, ebda + 1024);
     if (!r)
         r = scan(0xE0000, 0x100000);
