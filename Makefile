@@ -148,7 +148,7 @@ IMG          := $(BUILD)/disk.img
 IMG_SIZE_MB  ?= 16
 STAGE2_LBA   ?= 2048
 QEMU         ?= qemu-system-x86_64
-QEMUFLAGS    ?= -no-reboot -d int,cpu_reset -D $(BUILD)/qemu.log
+QEMUFLAGS    ?= -no-reboot -d int,cpu_reset -D $(BUILD)/qemu.log -m 4G
 
 disk: $(IMG)
 
