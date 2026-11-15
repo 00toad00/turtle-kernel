@@ -59,16 +59,33 @@ void printf(const char *fmt, console *con, ...) {
     for (; *fmt; fmt++) {
         if (*fmt != '%') { print_c(*fmt, con); continue; }
 
+        int wide = 0;
+        while (fmt[1] == 'l') { wide = 1; fmt++; }
+
         switch (*++fmt) {
         case 's': {
             const char *s = va_arg(ap, const char *);
             print_s(s ? s : "(null)", con);
             break;
         }
-        case 'u': utoa(va_arg(ap, uint32_t), 10, buf);  print_s(buf, con); break;
-        case 'x': utoa(va_arg(ap, uint32_t), 16, buf);  print_s(buf, con); break;
-        case 'o': utoa(va_arg(ap, uint32_t), 8,  buf);  print_s(buf, con); break;
-        case 'i': itoa(va_arg(ap, int32_t), buf);       print_s(buf, con); break;
+        case 'u':
+        case 'x':
+        case 'o': {
+            int base = (*fmt == 'u') ? 10 : (*fmt == 'x') ? 16 : 8;
+            uint64_t v = wide ? va_arg(ap, uint64_t) : va_arg(ap, uint32_t);
+            utoa(v, base, buf);
+            print_s(buf, con);
+            break;
+        }
+        case 'd':
+        case 'i': {
+            int64_t v = wide ? va_arg(ap, int64_t) : va_arg(ap, int32_t);
+            itoa(v, buf);
+            print_s(buf, con);
+            break;
+        }
+        case 'c': print_c((char)va_arg(ap, int), con); break;
+        case '%': print_c('%', con); break;
         case '\0': fmt--; break;
         default:  break;
         }
