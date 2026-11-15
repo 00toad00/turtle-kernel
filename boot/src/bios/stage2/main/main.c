@@ -4,17 +4,38 @@
 #include <string.h>
 #include <stdlib.h>
 
+//  Bios
+#include <bios/bios_call.h>
+#include <bios/halt.h>
+
+//  Boot
+#include <boot/bootinfo.h>
+#include <boot/codes.h>
+
 //  Video
 #include <video/vesa.h>
 #include <video/framebuffer.h>
 #include <video/bootlogo.h>
 #include <video/console.h>
 
+//  MM 
+#include <mm/e820.h>
+
+//  Disk
+#include <fs/disk.h>
+
 //  ACPI
 #include <acpi/rsdp.h>
 #include <acpi/xsdp.h>
 
-void main() {
+void main(uint32_t bootdisk) {
+    bdisk = bootdisk;
+
+    bootinfo bi;
+    uint64_t status = 0;
+
+    bi.firmware = 0; // BIOS = 0; UEFI = 1;
+
     //  Graphics initialization
     vbe_info_block vbe_info;
     vbe_mode_info vbe_mode;
@@ -26,7 +47,13 @@ void main() {
     edid_info edid_in;
     vbe_read_edid(&edid_rw, 0);
     edid_parse(&edid_rw, &edid_in);
-    vbe_set_mode(edid_in.width, edid_in.height, 32, &vbe_info, &vbe_mode);
+    uint16_t vbec = vbe_set_mode(edid_in.width, edid_in.height, 32, &vbe_info, &vbe_mode);
+    if (vbec != 0x004F) {
+        const char *novbe = "Failed to set video mode. Halting execution";
+        char *vga = (char*)0xB8000;
+        for (int i = 0; novbe[i] != 0; i++) { vga[2*i] = novbe[i]; vga[2*i+1] = 0x0F; }
+        halt();
+    }
 
     framebuffer fb;
     fb.lfb = (void*)vbe_mode.framebuffer;
@@ -35,6 +62,14 @@ void main() {
     fb.bpp = vbe_mode.bpp;
     fb.pitch = (vbe_info.version >= 0x0300) ? vbe_mode.lin_bytes_per_scan_line : vbe_mode.bytes_per_scan_line;
 
+    //bootlogo_draw(&fb, bootlogo, 0xFFFFFFFF, 0x00000000);
+
+    bi.video.lfb    = (uint64_t)(uintptr_t)fb.lfb;
+    bi.video.width  = (uint32_t)fb.width;
+    bi.video.height = (uint32_t)fb.height;
+    bi.video.pitch  = (uint32_t)fb.pitch;
+    bi.video.bpp    = (uint8_t)fb.bpp;
+
     console con;
     con.fb = &fb;
     con.border.x = 10; con.border.y = 10;
@@ -42,8 +77,26 @@ void main() {
     con.glyph.x = 8; con.glyph.y = 13;
     con.pad.x = 1; con.pad.y = 1;
 
-    //  Boot logo
-    bootlogo_draw(&fb, bootlogo, 0xFFFFFFFF, 0x00000000);
+    //  ACPI
+    rsdp *acpi_ptr = find_rsdp();
+    if (!acpi_ptr) { status |= ERRCODE_RSDP_NOT_FOUND; }
+    bi.rsdp = (uint64_t)(uintptr_t)acpi_ptr;
 
-    while (1);
+    //  MM
+    e820_entry entry[128];
+    int entries = get_e820(128, entry);
+    for (int i = 0; i < entries; i++) {
+        //printf("E820 ENTRY : BASE 0x%llx SIZE %llu TYPE %u\n", &con, entry[i].base, entry[i].length, entry[i].type);
+    }
+
+    uint8_t buf[512];
+    read(buf, 0, 1);
+
+    for (int i = 0; i < 512; i++) {
+        printf("%x ", &con, buf[i]);
+    }
+
+    //  Handoff -> long mode -> kernel
+    bi.status = status;
+    halt();
 }
