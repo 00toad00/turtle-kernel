@@ -3,6 +3,7 @@
 #   make            build everything (stage 1, stage 2, libk)
 #   make disk       build the bootable image build/disk.img
 #   make run        build the image and boot it in QEMU
+#   make installer  build the host installer bin/turtle-install
 #   make V=1        show full commands
 #   make clean      remove the build directory
 #
@@ -86,18 +87,33 @@ STAGE2      := $(BUILD)/stage-2.bin
 $(STAGE2_OBJS): CPPFLAGS += -Iboot/include -Iboot/include/bios -I$(LIBK_DIR)/include
 
 # --------------------------------------------------------------------------
+#  Installer  (host program, built with the host compiler and libc)
+#  Objects go to $(BUILD) like everything else; the binary goes to $(BIN).
+# --------------------------------------------------------------------------
+BIN          ?= bin
+HOSTCC       ?= cc
+HOSTCFLAGS   ?= -O2 -g -std=gnu11 -Wall -Wextra
+HOSTLDFLAGS  ?=
+
+INSTALL_DIR  := install
+INSTALL_SRCS := $(call find_srcs,$(INSTALL_DIR)/src)
+INSTALL_OBJS := $(call to_objs,$(INSTALL_SRCS))
+INSTALLER    := $(BIN)/turtle-install
+
+# --------------------------------------------------------------------------
 #  Top-level targets
 # --------------------------------------------------------------------------
-ALL_OBJS := $(LIBK_OBJS) $(STAGE1_OBJS) $(STAGE2_OBJS)
+ALL_OBJS := $(LIBK_OBJS) $(STAGE1_OBJS) $(STAGE2_OBJS) $(INSTALL_OBJS)
 DEPS     := $(ALL_OBJS:.o=.d)
 
-.PHONY: all libk stage1 stage2 disk run clean
+.PHONY: all libk stage1 stage2 installer disk run clean
 .DEFAULT_GOAL := all
 
-all: $(STAGE1) $(STAGE2)
+all: $(STAGE1) $(STAGE2) $(INSTALLER)
 libk: $(LIBK)
 stage1: $(STAGE1)
 stage2: $(STAGE2)
+installer: $(INSTALLER)
 
 $(LIBK): $(LIBK_OBJS)
 	$(call msg,AR,$@)
@@ -116,6 +132,18 @@ $(STAGE2): $(STAGE2_OBJS) $(LIBK) $(STAGE2_LDS)
 	@mkdir -p $(@D)
 	$(Q)$(LD) $(LDFLAGS) -T $(STAGE2_LDS) -Map=$(@:.bin=.map) \
 		-o $@ $(call entry_first,$(STAGE2_OBJS)) $(LIBK)
+
+$(INSTALLER): $(INSTALL_OBJS)
+	$(call msg,LD,$@)
+	@mkdir -p $(@D)
+	$(Q)$(HOSTCC) $(HOSTLDFLAGS) -o $@ $^
+
+# Installer objects: host compiler/flags. This rule's stem is shorter than the
+# generic $(BUILD)/%.o one below, so GNU make picks it for install/ sources.
+$(BUILD)/$(INSTALL_DIR)/%.o: $(INSTALL_DIR)/%.c Makefile
+	$(call msg,HOSTCC,$<)
+	@mkdir -p $(@D)
+	$(Q)$(HOSTCC) -I$(INSTALL_DIR)/include $(HOSTCFLAGS) $(DEPFLAGS) -c $< -o $@
 
 # --------------------------------------------------------------------------
 #  Pattern rules (output mirrors source tree under $(BUILD))
@@ -174,5 +202,6 @@ run: $(IMG)
 clean:
 	$(call msg,CLEAN,$(BUILD))
 	$(Q)rm -rf $(BUILD)
+	$(Q)rm -f $(INSTALLER)
 
 -include $(DEPS)
