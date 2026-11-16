@@ -23,6 +23,7 @@
 
 //  Disk
 #include <fs/disk.h>
+#include <fs/esp.h>
 
 //  ACPI
 #include <acpi/rsdp.h>
@@ -62,7 +63,7 @@ void main(uint32_t bootdisk) {
     fb.bpp = vbe_mode.bpp;
     fb.pitch = (vbe_info.version >= 0x0300) ? vbe_mode.lin_bytes_per_scan_line : vbe_mode.bytes_per_scan_line;
 
-    //bootlogo_draw(&fb, bootlogo, 0xFFFFFFFF, 0x00000000);
+    bootlogo_draw(&fb, bootlogo, 0xFFFFFFFF, 0x00000000);
 
     bi.video.lfb    = (uint64_t)(uintptr_t)fb.lfb;
     bi.video.width  = (uint32_t)fb.width;
@@ -70,7 +71,6 @@ void main(uint32_t bootdisk) {
     bi.video.pitch  = (uint32_t)fb.pitch;
     bi.video.bpp    = (uint8_t)fb.bpp;
 
-    console con;
     con.fb = &fb;
     con.border.x = 10; con.border.y = 10;
     con.pos.x = 0; con.pos.y = 0;
@@ -85,16 +85,8 @@ void main(uint32_t bootdisk) {
     //  MM
     e820_entry entry[128];
     int entries = get_e820(128, entry);
-    for (int i = 0; i < entries; i++) {
-        //printf("E820 ENTRY : BASE 0x%llx SIZE %llu TYPE %u\n", &con, entry[i].base, entry[i].length, entry[i].type);
-    }
 
-    uint8_t buf[512];
-    read(buf, 0, 1);
-
-    for (int i = 0; i < 512; i++) {
-        printf("%x ", &con, buf[i]);
-    }
+    printf("Test\n");
 
     //  Handoff -> long mode -> kernel
     bi.status = status;

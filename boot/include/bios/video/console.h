@@ -17,4 +17,6 @@ typedef struct {
     dim2 pad;
 } console;
 
-void printf(const char *fmt, console *con, ...);
+void printf(const char *fmt, ...);
+
+extern console con;
