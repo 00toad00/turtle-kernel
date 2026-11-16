@@ -1,5 +1,8 @@
 # Build
 build
+bin
 
 # Env
 .vscode
+# Host tools
+bin
