@@ -24,7 +24,8 @@ SECTIONS {
     }
     ASSERT(__stack_top <= 0x80000, "stage 2 + stack too large")
 
-    __boot_end = .+1024;
+    . = ALIGN(4096);
+    __boot_end = .;
 
     ASSERT(_start == 0x8004, "Stage-2 _start must start at 0x8004")
 

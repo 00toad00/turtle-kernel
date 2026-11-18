@@ -20,10 +20,12 @@
 
 //  MM 
 #include <mm/e820.h>
+#include <mm/alloc.h>
 
 //  Disk
 #include <fs/disk.h>
 #include <fs/esp.h>
+#include <fs/fat32.h>
 
 //  ACPI
 #include <acpi/rsdp.h>
@@ -86,6 +88,22 @@ void main(uint32_t bootdisk) {
     e820_entry entry[128];
     int entries = get_e820(128, entry);
 
+    map.e820 = entry;
+    map.entries = entries;
+    map.page_size = 512;
+    map.min = (uint32_t)&__boot_end;
+    alloc_init(&map, entry);
+    
+    //  Kernel location
+    uint64_t esp = find_esp();
+    fat32_boot_sector *bpb = (fat32_boot_sector*)alloc_page(1);
+    read(bpb, esp, 1);
+
+    for (int i = 0; i < 512; i++) {
+        printf("%x ", ((char*)bpb)[i]);
+    }
+
+    // Testing
     printf("Test\n");
 
     //  Handoff -> long mode -> kernel

@@ -17,10 +17,7 @@ uint64_t find_esp() {
             if (m.entry[i].type == MBR_ESP && m.entry[i].size != 0) { return m.entry[i].lba; }
         }
         return 0;
-    } else {
-        if (read(&m, 1, 1) != 0) { return 0; }
-        /* GPT LOGIC */
-    }
+    } else { /* GPT LOGIC */ }
 
     return 0;
 }
