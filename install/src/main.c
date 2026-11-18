@@ -12,6 +12,7 @@
 
 #include <block.h>
 #include <config.h>
+#include <fat32.h>
 #include <mbr.h>
 #include <patch.h>
 
@@ -22,6 +23,11 @@
 // Stage 1 loads stage 2 at 0x8000 and later sets the stack to 0x90000.
 // Keep stage 2 well below that so it never overlaps the stack.
 #define STAGE2_MAX_SECTORS ((0x80000 - 0x8000) / SECTOR_SIZE)
+
+// 1 MiB is reserved for stage 2; the ESP follows, 1 MiB aligned, and takes
+// the rest of the disk (up to what a 32-bit MBR entry can describe).
+#define ESP_LBA (STAGE2_LBA + 2048)
+_Static_assert(STAGE2_LBA + STAGE2_MAX_SECTORS <= ESP_LBA, "stage 2 would overlap the ESP");
 
 static void usage(void) {
     fprintf(stderr,
@@ -44,7 +50,7 @@ static int confirm(const char *dev, uint64_t bytes) {
         fprintf(stderr, "stdin is not a terminal; pass --yes to confirm non-interactively\n");
         return 0;
     }
-    printf("This will overwrite the partition table and the start of\n"
+    printf("This will overwrite the partition table and format an ESP on\n"
            "  %s (%.1f MiB)\n"
            "All data on it will be lost. Type 'yes' to continue: ",
            dev, (double)bytes / (1024.0 * 1024.0));
@@ -164,13 +170,16 @@ int main(int argc, char **argv) {
         dev_bytes = (uint64_t)dst.st_size;
     }
 
-    uint64_t needed = (uint64_t)(STAGE2_LBA + s2_sectors) * SECTOR_SIZE;
+    uint64_t needed = (uint64_t)(ESP_LBA + FAT32_MIN_SECTORS) * SECTOR_SIZE;
     if (dev_bytes < needed) {
         fprintf(stderr, "%s is too small: %llu bytes, need at least %llu\n",
                 cfg.dev, (unsigned long long)dev_bytes, (unsigned long long)needed);
         close(fd);
         return 1;
     }
+
+    uint64_t esp_sectors = dev_bytes / SECTOR_SIZE - ESP_LBA;
+    if (esp_sectors > UINT32_MAX - ESP_LBA) esp_sectors = UINT32_MAX - ESP_LBA;
 
     if (!cfg.yes && !confirm(cfg.dev, dev_bytes)) {
         fprintf(stderr, "Aborted, nothing was written.\n");
@@ -179,7 +188,9 @@ int main(int argc, char **argv) {
     }
 
     // ---- Build the MBR ----
-    if (getrandom(&m.disk_signature, sizeof(uint32_t), 0) != sizeof(uint32_t)) {
+    uint32_t esp_volume_id;
+    if (getrandom(&m.disk_signature, sizeof(uint32_t), 0) != sizeof(uint32_t) ||
+        getrandom(&esp_volume_id, sizeof(uint32_t), 0) != sizeof(uint32_t)) {
         perror("getrandom");
         close(fd);
         return 1;
@@ -191,15 +202,23 @@ int main(int argc, char **argv) {
     m.entry[0].type     = MBR_NONFS;
     m.entry[0].lba      = STAGE2_LBA;
     m.entry[0].size     = (uint32_t)s2_sectors;
+    m.entry[1].type     = MBR_ESP;
+    m.entry[1].lba      = ESP_LBA;
+    m.entry[1].size     = (uint32_t)esp_sectors;
     m.signature         = 0xAA55;
 
     patch p = { .lba = STAGE2_LBA, .sec = (uint16_t)s2_sectors };
     memcpy(&m.code[MBR_PATCH_OFF], &p, sizeof(patch));
 
-    // ---- Write: stage 2 first, then the MBR that points at it ----
+    // ---- Write: stage 2 and the ESP first, then the MBR that points at them ----
     // If anything fails midway, the old MBR is still intact.
     if (write_sectors(fd, STAGE2_LBA, s2, (uint32_t)s2_sectors) != 0) {
         perror("writing stage 2");
+        close(fd);
+        return 1;
+    }
+    if (fat32_format(fd, ESP_LBA, (uint32_t)esp_sectors, esp_volume_id) != 0) {
+        perror("formatting ESP");
         close(fd);
         return 1;
     }
@@ -236,7 +255,9 @@ int main(int argc, char **argv) {
     free(s2);
     free(s2_check);
 
-    printf("Installed to %s: stage 2 = %lld sectors at LBA %d\n",
-           cfg.dev, (long long)s2_sectors, STAGE2_LBA);
+    printf("Installed to %s: stage 2 = %lld sectors at LBA %d, "
+           "ESP (FAT32) = %.1f MiB at LBA %d\n",
+           cfg.dev, (long long)s2_sectors, STAGE2_LBA,
+           (double)esp_sectors * SECTOR_SIZE / (1024.0 * 1024.0), ESP_LBA);
     return 0;
 }

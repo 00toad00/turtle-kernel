@@ -39,6 +39,17 @@ int write_sectors(int fd, uint64_t lba, const void *buf, uint32_t count) {
     return 0;
 }
 
+int zero_sectors(int fd, uint64_t lba, uint64_t count) {
+    static uint8_t zero[128 * SECTOR_SIZE];
+
+    while (count > 0) {
+        uint32_t n = count < 128 ? (uint32_t)count : 128;
+        if (write_sectors(fd, lba, zero, n) != 0) return -1;
+        lba += n; count -= n;
+    }
+    return 0;
+}
+
 // Size of a file in sectors (rounded up), or -1 with errno set on error.
 int64_t file_sectors(const char *path) {
     struct stat st;
