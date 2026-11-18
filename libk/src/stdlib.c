@@ -2,7 +2,7 @@
 
 const char *chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
-void utoa(uint32_t i, int base, char *buf) {
+void utoa(uint64_t i, int base, char *buf) {
     char tmp[64];                      // max 64 digits (base 2)
     int n = 0;
 
@@ -17,7 +17,7 @@ void utoa(uint32_t i, int base, char *buf) {
     *buf = '\0';
 }
 
-void itoa(int32_t i, char *buf) {
+void itoa(int64_t i, char *buf) {
     if (i < 0) {
         *buf++ = '-';
         utoa(-(uint32_t)i, 10, buf);
