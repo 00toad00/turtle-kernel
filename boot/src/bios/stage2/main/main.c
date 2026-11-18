@@ -99,8 +99,9 @@ void main(uint32_t bootdisk) {
     fat32_boot_sector *bpb = (fat32_boot_sector*)alloc_page(1);
     read(bpb, esp, 1);
 
+    uint8_t *b = (uint8_t*)bpb;
     for (int i = 0; i < 512; i++) {
-        printf("%x ", ((char*)bpb)[i]);
+        printf("%x ", b[i]);
     }
 
     // Testing
