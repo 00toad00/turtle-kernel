@@ -167,34 +167,23 @@ $(BUILD)/%.o: %.s Makefile
 	$(Q)$(CC) $(ASFLAGS) -c $< -o $@
 
 # --------------------------------------------------------------------------
-#  Disk image + QEMU (same layout as util/mkdisk.sh)
-#    LBA 0     stage 1 (MBR); patch area at offset 420 gets
-#              stage2_lba (u32 LE) and stage2_size (u16 LE, sectors)
-#    LBA 2048  stage 2
+#  Disk image + QEMU
+#    The image is laid out by the installer (bin/turtle-install): MBR,
+#    stage 2 and a FAT32 ESP filling the rest of the image. The ESP needs
+#    at least ~36 MB, so keep IMG_SIZE_MB above that.
+#    Note: the installer reads build/stage-{1,2}.bin, so BUILD must be "build".
 # --------------------------------------------------------------------------
 IMG          := $(BUILD)/disk.img
-IMG_SIZE_MB  ?= 16
-STAGE2_LBA   ?= 2048
+IMG_SIZE_MB  ?= 64
 QEMU         ?= qemu-system-x86_64
 QEMUFLAGS    ?= -no-reboot -d int,cpu_reset -D $(BUILD)/qemu.log -m 4G
 
 disk: $(IMG)
 
-$(IMG): $(STAGE1) $(STAGE2) Makefile
+$(IMG): $(STAGE1) $(STAGE2) $(INSTALLER) Makefile
 	$(call msg,IMG,$@)
-	$(Q)s1=$$(stat -c%s $(STAGE1)); \
-	if [ "$$s1" -ne 512 ]; then \
-		echo "$(STAGE1) is $$s1 bytes, expected 512" >&2; exit 1; \
-	fi; \
-	s2=$$(stat -c%s $(STAGE2)); \
-	sectors=$$(( (s2 + 511) / 512 )); \
-	rm -f $@ && truncate -s $(IMG_SIZE_MB)M $@ && \
-	dd if=$(STAGE1) of=$@ bs=512 count=1 conv=notrunc status=none && \
-	python3 -I -c 'import struct,sys; sys.stdout.buffer.write(struct.pack("<IH", int(sys.argv[1]), int(sys.argv[2])))' \
-		$(STAGE2_LBA) $$sectors | dd of=$@ bs=1 seek=420 conv=notrunc status=none && \
-	dd if=$(STAGE2) of=$@ bs=512 seek=$(STAGE2_LBA) conv=notrunc status=none && \
-	echo "  $@: stage 2 = $$s2 bytes ($$sectors sectors) at LBA $(STAGE2_LBA)" || \
-	{ rm -f $@; exit 1; }
+	$(Q)rm -f $@ && truncate -s $(IMG_SIZE_MB)M $@ && \
+	./$(INSTALLER) --dev $@ --mbr --yes || { rm -f $@; exit 1; }
 
 run: $(IMG)
 	$(QEMU) -drive file=$(IMG),format=raw $(QEMUFLAGS)
