@@ -13,4 +13,4 @@ typedef struct {
     uint64_t    lba;
 } __attribute__((packed)) disk_address_packet;
 
-int read(void *buf, uint64_t lba, uint32_t n);
+void *read(void *buf, uint64_t lba, uint32_t n);
