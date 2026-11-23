@@ -22,10 +22,11 @@
 #include <mm/e820.h>
 #include <mm/alloc.h>
 
-//  Disk
+//  FS
 #include <fs/disk.h>
 #include <fs/esp.h>
 #include <fs/fat32.h>
+#include <fs/utf16.h>
 
 //  ACPI
 #include <acpi/rsdp.h>
@@ -90,22 +91,47 @@ void main(uint32_t bootdisk) {
 
     map.e820 = entry;
     map.entries = entries;
-    map.page_size = 512;
+    map.page_size = 4096;
     map.min = (uint32_t)&__boot_end;
     alloc_init(&map, entry);
+    malloc_init(2048);
     
-    //  Kernel location
+    //  ESP partition
     uint64_t esp = find_esp();
-    fat32_boot_sector *bpb = (fat32_boot_sector*)alloc_page(1);
-    read(bpb, esp, 1);
+    fat_volume *vol = (fat_volume*)malloc(sizeof(fat_volume));
+    read(&vol->bpb, esp, 1);
+    vol->lba = esp;
+    vol->epf = (vol->bpb.fat_size32*vol->bpb.bytes_per_sector)/4;
+    
+    uint64_t fat_sec = esp + vol->bpb.reserved_sectors;
+    uint64_t fat_pages = ((vol->bpb.fat_size32 + 7) & ~(uint64_t)7)/8;
+    vol->fat = (uint32_t*)alloc_page(fat_pages);
+    read(vol->fat, fat_sec, vol->bpb.fat_size32);
 
-    uint8_t *b = (uint8_t*)bpb;
-    for (int i = 0; i < 512; i++) {
-        printf("%x ", b[i]);
+    uint32_t root_clusters = cluster_per_chain(vol, vol->bpb.root_cluster);
+    fat_entry *root = (fat_entry*)malloc(root_clusters*vol->bpb.sectors_per_cluster*vol->bpb.bytes_per_sector);
+    read_chain(vol, vol->bpb.root_cluster, root);
+
+    for (int i = 0;; i++) {
+        if (root[i].dir.name[0] == 0x00) { break; }
+        if (root[i].dir.attr == FAT_ATTR_ARCHIVE 
+            || root[i].dir.attr == FAT_ATTR_DIRECTORY
+            || root[i].dir.attr == FAT_ATTR_VOLUME_ID) {
+            char *name = (char*)malloc(12);
+            memcpy(name, root[i].dir.name, 11); name[11] = 0;
+            printf("%s\n", name);
+            free(name);
+        } else if (root[i].dir.attr == FAT_ATTR_LFN) {
+            uint16_t *utf16name = (uint16_t*)malloc(26);
+            memcpy(&utf16name[0], root[i].lfn.name1, 10);
+            memcpy(&utf16name[5], root[i].lfn.name2, 12);
+            memcpy(&utf16name[11], root[i].lfn.name3, 4);
+            char *asciiname = (char*)malloc(14);
+            utf16_to_ascii(utf16name, asciiname, 14);
+            printf("LFN %s\n", asciiname);
+            free(asciiname); free(utf16name);
+        }
     }
-
-    // Testing
-    printf("Test\n");
 
     //  Handoff -> long mode -> kernel
     bi.status = status;
