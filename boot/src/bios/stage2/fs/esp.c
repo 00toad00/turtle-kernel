@@ -3,7 +3,7 @@
 
 uint64_t find_esp() {
     mbr m;
-    if(read(&m, 0, 1) != 0) { return 0; }
+    if(!read(&m, 0, 1)) { return 0; }
 
     if (m.signature != 0xAA55) { return 0; }
 

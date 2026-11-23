@@ -1,13 +1,14 @@
 #include <bios/bios_call.h>
 #include <fs/disk.h>
 #include <string.h>
+#include <stddef.h>
 
 #define READBUFFER_SECTORS 8
 static uint8_t readbuffer[READBUFFER_SECTORS * 512] __attribute__((aligned(4096)));
 uint32_t bdisk;
 static disk_address_packet dap;
 
-int read(void *buf, uint64_t lba, uint32_t n) {
+void *read(void *buf, uint64_t lba, uint32_t n) {
     uint32_t addr = (uint32_t)&readbuffer[0];
     char *ptr = (char*)buf;
 
@@ -39,7 +40,7 @@ int read(void *buf, uint64_t lba, uint32_t n) {
             if (r.eflags & 1) { errcount++; }
             else { break; }
         }
-        if (errcount == 3) { return -1; }
+        if (errcount == 3) { return NULL; }
 
         memcpy(ptr, readbuffer, now*512);
         ptr += now*512;
@@ -47,5 +48,5 @@ int read(void *buf, uint64_t lba, uint32_t n) {
         lba += now;
     }
 
-    return 0;
+    return buf;
 }

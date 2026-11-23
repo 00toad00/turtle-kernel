@@ -32,7 +32,7 @@ typedef struct {
     char     fs_type[8];
     uint8_t  boot_code[420];
     uint16_t signature;
-} __attribute__((packed)) fat32_boot_sector;
+} __attribute__((packed)) fat_boot_sector;
 
 typedef struct {
     char     name[11];
@@ -61,10 +61,31 @@ typedef struct {
     uint16_t name3[2];       // 0x1C: characters 12-13
 } __attribute__((packed)) fat_lfn_entry;
 
-#define FAT_ATTR_READ_ONLY 0x01
-#define FAT_ATTR_HIDDEN    0x02
-#define FAT_ATTR_SYSTEM    0x04
-#define FAT_ATTR_VOLUME_ID 0x08
-#define FAT_ATTR_DIRECTORY 0x10
-#define FAT_ATTR_ARCHIVE   0x20
-#define FAT_ATTR_LFN       0x0F   
+typedef union {
+    fat_dir_entry   dir;
+    fat_lfn_entry   lfn;
+    uint8_t         raw[32];
+} fat_entry;
+
+typedef struct {
+    uint64_t            lba;
+    fat_boot_sector     bpb;
+    uint32_t            *fat;
+    uint32_t            epf;
+} fat_volume;
+
+#define FAT_ENTRY_MASK(x)       (x & 0x0FFFFFFF)
+#define FAT_ENTRY_END(x)        ((x) >= 0x0FFFFFF8)
+
+#define FAT_ATTR_READ_ONLY  0x01
+#define FAT_ATTR_HIDDEN     0x02
+#define FAT_ATTR_SYSTEM     0x04
+#define FAT_ATTR_VOLUME_ID  0x08
+#define FAT_ATTR_DIRECTORY  0x10
+#define FAT_ATTR_ARCHIVE    0x20
+#define FAT_ATTR_LFN        0x0F
+
+uint64_t sector_of_cluster(fat_volume *vol, uint32_t n);
+uint32_t cluster_per_chain(fat_volume *vol, uint32_t n);
+void *read_cluster(fat_volume *vol, uint32_t n, void *buf);
+void *read_chain(fat_volume *vol, uint32_t n, void *buf);
