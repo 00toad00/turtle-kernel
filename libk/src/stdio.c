@@ -1,6 +1,7 @@
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 int sprintf(char *buf, const char *fmt, ...) {
     va_list ap;
