@@ -4,5 +4,7 @@ bin
 
 # Env
 .vscode
+.clangd
+compile_commands.json
 # Host tools
 bin
