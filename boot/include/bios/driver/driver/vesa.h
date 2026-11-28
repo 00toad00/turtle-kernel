@@ -125,10 +125,3 @@ typedef struct {
     uint16_t refresh_hz;
     char     name[14];         
 } edid_info;
-
-uint16_t get_vbe_controller_info(vbe_info_block* vbeib);
-uint16_t get_vbe_mode_info(int mode, vbe_mode_info *vbemi);
-uint16_t vbe_set_mode(uint16_t width, uint16_t height, uint8_t bpp, vbe_info_block *vbeib, vbe_mode_info *vbemi);
-
-int vbe_read_edid(edid_raw *edid, uint16_t block);
-int edid_parse(const edid_raw *e, edid_info *out);

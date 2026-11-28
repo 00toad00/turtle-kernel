@@ -2,8 +2,6 @@
 
 #include <stdint.h>
 
-extern uint32_t bdisk;
-
 typedef struct {
     uint8_t     size;
     uint8_t     zero;
@@ -13,4 +11,12 @@ typedef struct {
     uint64_t    lba;
 } __attribute__((packed)) disk_address_packet;
 
-void *read(void *buf, uint64_t lba, uint32_t n);
+typedef struct {
+    uint16_t    size;
+    uint16_t    flags;
+    uint32_t    c;
+    uint32_t    h;
+    uint32_t    s;
+    uint64_t    sectors;
+    uint16_t    sector_size;
+} __attribute__((packed)) drive_params;

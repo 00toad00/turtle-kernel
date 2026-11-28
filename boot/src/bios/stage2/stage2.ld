@@ -9,6 +9,13 @@ SECTIONS {
     .data   : { *(.data .data.*) }
     .rodata : { *(.rodata .rodata.*) }
 
+    .driver : {
+        . = ALIGN(64);
+        __driver_start = .;
+        KEEP(*(.driver))
+        __driver_end = .;
+    }
+
     .bss    : {
         __bss_start = .;
         *(.bss .bss.*);
@@ -17,7 +24,7 @@ SECTIONS {
     }
 
     .stack (NOLOAD) : {
-        . = ALIGN(16);
+        . = ALIGN(8);
         __stack_bottom = .;
         . += 0x10000;           /* 64 KiB */
         __stack_top = .;

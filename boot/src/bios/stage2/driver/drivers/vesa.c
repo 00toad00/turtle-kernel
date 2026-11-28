@@ -1,9 +1,20 @@
-#include <video/vesa.h>
 #include <stdint.h>
 #include <string.h>
+#include <stdio.h>
+
+#include <driver/header/driver.h>
+#include <driver/header/fb_device.h>
+#include <driver/driver/vesa.h>
+
 #include <bios/bios_call.h>
 
-uint16_t get_vbe_controller_info(vbe_info_block* vbeib) {
+static driver drv;
+
+static int devices;
+
+static vbe_info_block vbe_info;
+
+static uint16_t get_vbe_controller_info(vbe_info_block* vbeib) {
     uint32_t addr = (uint32_t)vbeib;
  
     regs r = {0};
@@ -15,7 +26,7 @@ uint16_t get_vbe_controller_info(vbe_info_block* vbeib) {
     return r.eax & 0xFFFF;
 }
 
-uint16_t get_vbe_mode_info(int mode, vbe_mode_info *vbemi) {
+static uint16_t get_vbe_mode_info(int mode, vbe_mode_info *vbemi) {
     uint32_t addr = (uint32_t)vbemi;
 
     regs r = {0};
@@ -28,7 +39,7 @@ uint16_t get_vbe_mode_info(int mode, vbe_mode_info *vbemi) {
     return r.eax & 0xFFFF;
 }
 
-uint16_t vbe_set_mode(uint16_t width, uint16_t height, uint8_t bpp, vbe_info_block *vbeib, vbe_mode_info *vbemi) {
+static uint16_t vbe_set_mode(uint16_t width, uint16_t height, uint8_t bpp, vbe_info_block *vbeib, vbe_mode_info *vbemi) {
     //  Request VBE 2.0+ info
     vbeib->signature[0] = 'V';
     vbeib->signature[1] = 'B';
@@ -94,7 +105,7 @@ uint16_t vbe_set_mode(uint16_t width, uint16_t height, uint8_t bpp, vbe_info_blo
     return r.eax & 0xFFFF;
 }
 
-int vbe_read_edid(edid_raw *edid, uint16_t block) {
+static int vbe_read_edid(edid_raw *edid, uint16_t block) {
     uint32_t addr = (uint32_t)edid;
 
     regs r = {0};
@@ -117,7 +128,7 @@ int vbe_read_edid(edid_raw *edid, uint16_t block) {
     return sum == 0;
 }
 
-int edid_valid(const edid_raw *e) {
+static int edid_valid(const edid_raw *e) {
     static const uint8_t header[8] = { 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00 };
     for (int i = 0; i < 8; i++)
         if (e->header[i] != header[i]) return 0;
@@ -127,7 +138,7 @@ int edid_valid(const edid_raw *e) {
     return sum == 0;
 }
 
-int edid_parse(const edid_raw *e, edid_info *out) {
+static int edid_parse(const edid_raw *e, edid_info *out) {
     if (!edid_valid(e)) return 0;
 
     uint16_t m = (uint16_t)(e->manufacturer[0] << 8 | e->manufacturer[1]);
@@ -170,3 +181,39 @@ int edid_parse(const edid_raw *e, edid_info *out) {
     }
     return 1;
 }
+
+static int probe(device *dev) {
+    fb_device *s_dev = (fb_device*)dev;
+
+    if (dev->type != DEV_FB) { return 0; }
+
+    s_dev->dev.capabilities = FBDV_FBDEVICE | FBDV_VGA;
+
+    int vesa = 1;
+    if (get_vbe_controller_info(&vbe_info) != 0x004F) { vesa = 0; }
+    if (memcmp(vbe_info.signature, "VESA", 4)) { vesa = 0; }
+    if (vbe_info.version < 0x0200) { vesa = 0; }
+    if (vesa) { s_dev->dev.capabilities |= FBDV_VESA; }
+
+    s_dev->lfb = (void*)0xB8000;
+    s_dev->width = 80;
+    s_dev->height = 25;
+    s_dev->pitch = 80*2;
+    s_dev->bpp = 16;
+
+    return s_dev->dev.capabilities;
+}
+
+static void register_device(device *dev) {
+    fb_device *s_dev = (fb_device*)dev;
+
+    snprintf(s_dev->dev.name, 32, "screen%u", devices++);
+    s_dev->dev.drv = &drv;
+}
+
+static driver drv = {
+    .name               = "BISO VIDEO DRIVER",
+    .probe              = probe,
+    .register_device    = register_device
+};
+REGISTER_DRIVER(drv);
