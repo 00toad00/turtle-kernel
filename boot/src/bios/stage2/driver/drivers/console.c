@@ -22,17 +22,31 @@ static void text_draw_char(con_device *self, char c, int x, int y) {
 
 static void print_c(con_device *self, const char c) {
     fb_device *fb_dev = (fb_device*)self->dev.parent;
+    int line_h = self->glyph.y + self->pad.y;
 
-    if (c == '\n') {
-        self->pos.x = 0;
-        self->pos.y += self->glyph.y + self->pad.y;
-        return;
-    }
-    if (self->border.x + self->pos.x + self->glyph.x + self->pad.x
+    if (c == '\r') { self->pos.x = 0; return; }
+
+    if (c == '\n' || self->border.x + self->pos.x + self->glyph.x + self->pad.x
             > (int)(fb_dev->width - self->border.x)) {
         self->pos.x = 0;
-        self->pos.y += self->glyph.y + self->pad.y;
+        self->pos.y += line_h;
+
+        // scroll if the new line doesn't fit
+        if (self->border.y + self->pos.y + line_h > (int)(fb_dev->height - self->border.y)) {
+            uint8_t *base  = (uint8_t*)fb_dev->lfb;
+            uint32_t shift = line_h * fb_dev->pitch;
+            uint32_t total = fb_dev->height * fb_dev->pitch;
+            memmove(base, base + shift, total - shift);
+
+            self->pos.y -= line_h;
+            for (int x = 0; self->border.x + x + self->glyph.x <= (int)(fb_dev->width - self->border.x);
+                 x += self->glyph.x + self->pad.x) {
+                self->draw_char(self, ' ', self->border.x + x, self->border.y + self->pos.y);
+            }
+        }
+        if (c == '\n') { return; }
     }
+
     self->draw_char(self, c, self->border.x + self->pos.x, self->border.y + self->pos.y);
     self->pos.x += self->glyph.x + self->pad.x;
 }

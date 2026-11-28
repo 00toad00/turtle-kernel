@@ -8,10 +8,6 @@
 #include <bios/bios_call.h>
 #include <bios/halt.h>
 
-//  Boot
-#include <boot/bootinfo.h>
-#include <boot/codes.h>
-
 //  MM
 #include <mm/e820.h>
 #include <mm/alloc.h>
@@ -27,11 +23,6 @@
 #include <driver/header/con_device.h>
 
 void main(uint32_t bootdisk) {
-    bootinfo bi;
-    uint64_t status = 0;
-
-    bi.firmware = 0; // BIOS = 0; UEFI = 1;
-
     //      Memory Management       //
 
     //  E820 Memory Map
@@ -73,7 +64,7 @@ void main(uint32_t bootdisk) {
         con_dev->printf(con_dev, "Device [%s] Type [%s] initialized\n", con_dev->dev.name, dev_type_name(con_dev->dev.type));
     }
 
-    //  Disk device/driver init
+    //      Disk device/driver init     //
 
     blk_device *blk_dev = (blk_device*)calloc(1, sizeof(blk_device));
     blk_dev->dev.type = DEV_BLK;
@@ -90,10 +81,10 @@ void main(uint32_t bootdisk) {
         con_dev->printf(con_dev, "Device [%s] Type [%s] initialized\n", blk_dev->dev.name, dev_type_name(blk_dev->dev.type));
     }
 
-    //  ACPI
+    //      ACPI        //
+
     rsdp *acpi_ptr = find_rsdp();
-    if (!acpi_ptr) { status |= ERRCODE_RSDP_NOT_FOUND; }
-    bi.rsdp = (uint64_t)(uintptr_t)acpi_ptr;
+    if (!acpi_ptr) { }
 
     halt();
 }
