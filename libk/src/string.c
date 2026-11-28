@@ -22,3 +22,17 @@ int memcmp(const void *ptr1, const void *ptr2, size_t n) {
     }
     return 0;
 }
+
+void *memmove(void *dst, const void *src, size_t n) {
+    uint8_t *d = (uint8_t*)dst;
+    const uint8_t *s = (const uint8_t*)src;
+
+    if (d == s || n == 0) { return dst; }
+
+    if (d < s) {
+        for (size_t i = 0; i < n; i++) { d[i] = s[i]; }
+    } else {
+        for (size_t i = n; i > 0; i--) { d[i-1] = s[i-1]; }
+    }
+    return dst;
+}
